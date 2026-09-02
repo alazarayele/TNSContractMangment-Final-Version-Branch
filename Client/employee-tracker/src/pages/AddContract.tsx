@@ -66,13 +66,16 @@ export const AddContract = () => {
     setError('');
     setSuccess(false);
 
-    if (!formData.first_name || !formData.last_name || !formData.email || !formData.end_date) {
+    if (!formData.first_name || !formData.last_name || !formData.email) {
       setError('Please fill in all required fields');
       return;
     }
 
     try {
-      await addContract(formData);
+       await addContract({
+  ...formData,
+  end_date: formData.end_date || null,
+});
       setSuccess(true);
       setTimeout(() => navigate('/'), 2000);
     } catch (err) {
@@ -233,7 +236,7 @@ export const AddContract = () => {
             InputLabelProps={{ shrink: true }}
             value={formData.end_date}
             onChange={handleChange}
-            required
+            
           />
 
           {/* Submit Button */}

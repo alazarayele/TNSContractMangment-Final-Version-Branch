@@ -3,6 +3,8 @@ import { fetchContracts } from "../services/api";
 import { Contract } from "../types/contract";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HistoryIcon from '@mui/icons-material/History';
+import RestorePageIcon from '@mui/icons-material/RestorePage';
 import {
   Table,
   TableBody,
@@ -19,11 +21,14 @@ interface Props {
   contracts: Contract[];
   onDelete:(id: number) => void;
   onEdit: (contract: Contract) => void; // Add this
+  onHistory: (id: number) => void;
+  archived?:boolean;
+  onRestore?:(id :number) => void;
  }
 
 
 
-export const ContractTable = ({ contracts, onDelete,onEdit }: Props) => {
+export const ContractTable = ({ contracts, onDelete,onEdit,onHistory,archived = false,onRestore }: Props) => {
   return (
     <TableContainer component={Paper} elevation={3}>
       <Table>
@@ -49,7 +54,20 @@ export const ContractTable = ({ contracts, onDelete,onEdit }: Props) => {
                <TableCell>{contract.email}</TableCell>
                 <TableCell>{contract.email2}</TableCell>
                  
-              <TableCell>{new Date(contract.end_date).toLocaleDateString()}</TableCell>
+              <TableCell>
+  {contract.end_date
+    ? new Date(contract.end_date).toLocaleDateString()
+    : (
+      <span
+        style={{
+          color: "#1976d2",
+          fontWeight: "bold"
+        }}
+      >
+        Open Ended
+      </span>
+    )}
+</TableCell>
               <TableCell>
                 <span
                   style={{
@@ -59,12 +77,22 @@ export const ContractTable = ({ contracts, onDelete,onEdit }: Props) => {
                     color: new Date(contract.end_date) > new Date() ? '#1b5e20' : '#c62828'
                   }}
                 >
-                  {new Date(contract.end_date) > new Date() ? "Active" : "Expired"}
+                   {
+                  
+                  !contract.end_date
+    ? "Open Ended"
+    : new Date(contract.end_date) > new Date()
+    ? "Active"
+    : "Expired"}
                 </span>
               </TableCell>
               
-                 <TableCell>
+                <TableCell>
                 {/* EDIT BUTTON */}
+
+                {!archived && (
+
+                  <>
                 <IconButton 
                   color="primary" 
                   onClick={() => onEdit(contract)}
@@ -80,6 +108,28 @@ export const ContractTable = ({ contracts, onDelete,onEdit }: Props) => {
                 aria-label="delete">
                   <DeleteIcon/>
                 </IconButton>
+                </>
+
+)}
+{archived && (
+                <IconButton
+                color="success"
+               onClick={() => onRestore?.(contract.id)}
+                >
+                  <RestorePageIcon/>
+                </IconButton>
+
+                )}
+                <IconButton
+    color="info"
+    onClick={() => onHistory(contract.id)}
+    aria-label="history"
+    size="small"
+    sx={{ mr: 1 }}
+>
+    <HistoryIcon fontSize="small" />
+</IconButton>
+
               </TableCell>
             </TableRow>
           ))}

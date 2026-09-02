@@ -30,8 +30,10 @@ export const EditModal = ({ open, onClose, contract, onSave }: EditModalProps) =
     if (contract) {
       setFormData({
         project: contract.project,
-        end_date: contract.end_date.split('T')[0],// Format date,
-       line_manager:contract.line_manager,
+       end_date: contract.end_date
+  ? contract.end_date.split('T')[0]
+  : "" ,
+   line_manager:contract.line_manager,
          email2:contract.email2 || '',
         email:contract.email
 

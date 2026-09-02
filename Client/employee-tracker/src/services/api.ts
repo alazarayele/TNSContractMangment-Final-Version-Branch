@@ -7,8 +7,19 @@ export const fetchContracts = async () => {
   return response.data;
 };
 
+export const restoreContract = async (id: number) => {
+  const response = await axios.put(`${API_URL}/${id}/restore`);
+  return response.data;
+};
+
+
 export const deleteContract = async (id: number) => {
   const response = await axios.delete(`${API_URL}/${id}`);
+  return response.data;
+};
+
+export const fetchArchivedContracts =async () => {
+  const response = await axios.get(`${API_URL}/archive`);
   return response.data;
 };
 
@@ -17,7 +28,7 @@ export const addContract = async (contractData: {
   middle_name?: string;
   last_name: string;
   start_date: string;
-  end_date: string;
+  end_date: string | null;
   project: string;
   line_manager: string;
   phone_number: string;
@@ -47,10 +58,18 @@ export const updateContract = async (id: number, contractData: {
   return response.data;
 };
 
+
+
+
 export const exportToCSV = async (): Promise<Blob> => {
   const response = await axios.get(`${API_URL}/export/csv`, {
     responseType: 'blob'
   });
+  return response.data;
+};
+
+export const fetchHistory = async (id: number) => {
+  const response = await axios.get(`${API_URL}/${id}/history`);
   return response.data;
 };
 

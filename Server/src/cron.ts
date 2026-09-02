@@ -19,9 +19,14 @@ cron.schedule('0 11 */7 * *', async () => {
   console.log('Running contract reminder job...');
 
   try {
-    const [rows]: any = await db.execute(
-      'SELECT * FROM employees WHERE end_date <= DATE_ADD(NOW(), INTERVAL 4 MONTH)'
-    );
+      const [rows]: any = await db.execute(`
+  SELECT *
+  FROM employees
+  WHERE
+      end_date IS NOT NULL
+      AND is_deleted = 0
+      AND end_date <= DATE_ADD(NOW(), INTERVAL 4 MONTH)
+`);
 
     if (Array.isArray(rows) && rows.length > 0) {
       for (const employee of rows) {

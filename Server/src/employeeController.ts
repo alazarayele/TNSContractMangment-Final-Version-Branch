@@ -36,21 +36,89 @@ export const addEmployee = async (req: Request, res: Response) => {
     }
 };
 
+
+
+export const getArchivedEmployees = async (req:Request, res:Response) => {
+    try {
+        const [rows]: any[] =await db.execute(
+            `SELECT * FROM employees WHERE is_deleted = 1 ORDER BY deleted_at DESC`
+    );
+    res.json(rows);
+    }
+    catch(error){
+        console.error("Error Fetching archived employees:", error);
+        res.status(500).json({error: "Internal Server Error"});
+    }
+};
 // Add this export at the bottom of employeeController.ts
 export const deleteEmployee = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const query = 'DELETE FROM employees WHERE id = ?';
+
+        const [rows]: any = await db.execute(
+    "SELECT * FROM employees WHERE id = ?",
+    [id]
+);
+
+const oldData = rows[0];
+
+        const query = `UPDATE employees
+                        SET
+                         is_deleted=1,
+                         deleted_at = NOW(),
+                         deleted_by = 'HR'
+                         WHERE id = ?`;
+
         await db.execute(query, [id]);
 
-        res.status(200).json({ message: "Employee deleted successfully" });
+        await db.execute(
+    `
+    INSERT INTO audit_logs
+    (contract_id, action, changed_by, old_data, new_data)
+    VALUES (?, ?, ?, ?, ?)
+    `,
+    [
+        id,
+        "ARCHIVE",
+        "Administrator",
+        JSON.stringify(oldData),
+        JSON.stringify({
+            status: "Archived"
+        })
+    ]
+);
+
+        res.status(200).json({ message: "Employee Archived successfully" });
     } catch (error) {
-        console.error("Error deleting employee:", error);
+        console.error("Error Archiving employee:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 };
 
+export const restoreEmployee = async (req:Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const query = `
+        UPDATE employees
+        SET
+                is_deleted = 0,
+                deleted_at = NULL,
+                deleted_by = NULL
+                Where id=?
+        `;
+        await db.execute(query,[id]);
+
+        res.status(200).json({
+            message:"employee restored Successfull"
+        });
+    } catch (error){
+        console.error("Error restoring employee:", error);
+        res.status(500).json({
+            error:"Internal Server Error"
+        });
+    }
+};
 
 export const exportEmployeesCSV = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -112,8 +180,8 @@ export const importEmployeesCSV = async (req: Request, res: Response): Promise<v
         let errors: string[] = [];
         
         // Function to parse various date formats to YYYY-MM-DD
-        const parseDate = (dateString: string): string => {
-            if (!dateString) return '';
+        const parseDate = (dateString: string): string | null=> {
+            if (!dateString) return null;
             
             // If already in YYYY-MM-DD format
             if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -126,7 +194,7 @@ export const importEmployeesCSV = async (req: Request, res: Response): Promise<v
                 return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
             }
             
-            return ''; // Return empty if can't parse
+            return null; // Return empty if can't parse
         };
 
         // Skip header row (index 0)
@@ -221,8 +289,21 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
         console.log('📥 Backend: Received ID:', id);
         console.log('📥 Backend: Received data:', updates);
 
+         const [rows]: any = await db.execute(
+    "SELECT * FROM employees WHERE id = ?",
+    [id]
+);
+
+if (rows.length === 0) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+}
+
+const oldData = rows[0];
+console.log(oldData);
+
         // Check if required fields are present
-        const requiredFields = ['first_name', 'last_name', 'email', 'start_date', 'end_date', 'project','email2','line_manager'];
+        const requiredFields = ['first_name', 'last_name', 'email', 'start_date', 'project','email2','line_manager'];
         const missingFields = requiredFields.filter(field => !updates[field]);
         
         if (missingFields.length > 0) {
@@ -248,7 +329,7 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
             updates.middle_name || null, 
             updates.last_name, 
             updates.start_date, 
-            updates.end_date, 
+            updates.end_date || null, 
             updates.project, 
             updates.line_manager || null, 
             updates.phone_number || null, 
@@ -263,7 +344,33 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
         console.log('📝 Backend: With values:', values);
 
         await db.execute(query, values);
-        
+
+         const [newRows]: any = await db.execute(
+    "SELECT * FROM employees WHERE id = ?",
+    [id]
+);
+
+const newData = newRows[0];
+
+// Save audit log
+        // Save audit log
+await db.execute(
+    `
+    INSERT INTO audit_logs
+    (contract_id, action, changed_by, old_data, new_data)
+    VALUES (?, ?, ?, ?, ?)
+    `,
+    [
+        id,
+        "UPDATE",
+        "HR", // Later replace with logged-in username
+        JSON.stringify(oldData),
+        JSON.stringify(newData)
+    ]
+);
+ 
+console.log("📝 Audit log saved");
+
         console.log('✅ Backend: Employee updated successfully');
         res.status(200).json({ message: "Employee updated successfully" });
 
@@ -280,5 +387,28 @@ export const updateEmployee = async (req: Request, res: Response): Promise<void>
             error: "Internal Server Error",
             details: error instanceof Error ? error.message : "Unknown error"
         });
+    }
+};
+
+
+export const getEmployeeHistory = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const [rows]: any = await db.execute(
+            `
+            SELECT *
+            FROM audit_logs
+            WHERE contract_id = ?
+            ORDER BY created_at DESC
+            `,
+            [id]
+        );
+
+        res.json(rows);
+
+    } catch (error) {
+        console.error("Error fetching audit history:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 };

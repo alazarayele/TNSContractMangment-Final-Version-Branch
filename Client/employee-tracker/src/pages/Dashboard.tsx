@@ -1,53 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ContractTable } from '../components/ContractTable';
-import { exportToCSV, fetchContracts,importFromCSV,updateContract } from '../services/api';
+import { exportToCSV, fetchContracts,importFromCSV,updateContract,fetchHistory,fetchArchivedContracts } from '../services/api';
 import { Contract } from '../types/contract';
-import { deleteContract } from '../services/api';
+import { deleteContract,restoreContract } from '../services/api';
 import { useRef } from 'react'; // ← Add this import
 import { EditModal } from '../components/EDITModal';
+import { HistoryModal } from "../components/HistoryModal";
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material';
 
-// export const Dashboard = () => {
-//   const [contracts, setContracts] = useState<Contract[]>([]);
-
-//   useEffect(() => {
-//     fetchContracts().then(setContracts);
-//   }, []);
-
-//   return (
-//     <div className="p-4">
-//       {/* ✅ PASTE SUMMARY CARDS HERE (BEFORE THE TABLE) */}
-//       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-//         {/* Active Contracts Card */}
-//         <div className="bg-white p-4 rounded-lg shadow">
-//           <h3 className="text-gray-500">Active Contracts</h3>
-//           <p className="text-2xl font-bold">
-//             {contracts.filter(c => new Date(c.end_date) > new Date()).length}
-//           </p>
-//         </div>
-//         {/* ... other cards ... */}
-//       </div>
-
-//       {/* ✅ PASTE TIMELINE HERE (OPTIONAL) */}
-//       <div className="mb-6">
-//         <h2 className="text-xl font-semibold mb-3">Upcoming Expirations</h2>
-//         <div className="flex overflow-x-auto pb-2">
-//           {/* Timeline items... */}
-//         </div>
-//       </div>
-
-//       {/* Your existing table */}
-//       <ContractTable contracts={contracts} />
-
-//       {/* ✅ PASTE QUICK ACTION BUTTONS HERE (AFTER THE TABLE) */}
-//       <div className="flex space-x-4 mt-6">
-//         <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-//           Export to CSV
-//         </button>
-//         {/* ... other buttons ... */}
-//       </div>
-//     </div>
-//   );
-// };
 
 
 
@@ -173,10 +133,15 @@ export const Dashboard = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [archivedContracts,setArchivedContracts] = useState<Contract[]>([]);
+  const [openArchivedModal,setOpenArchivedModal] = useState(false);
     const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openExpiringModal, setOpenExpiringModal] = useState(false);
+const [openHistory, setOpenHistory] = useState(false);
+const [history, setHistory] = useState([]);
 const fileInputRef = useRef<HTMLInputElement>(null);
 const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,12 +160,55 @@ const handleLogin = (e: React.FormEvent) => {
         await deleteContract(id);
         setContracts(contracts.filter(contract => contract.id !== id));
         // You can add a success notification here
+
+        const archived = await fetchArchivedContracts();
+        setArchivedContracts(archived);
+
+        alert("Contract archived successfully");
       } catch (error) {
         console.error('Error deleting contract:', error);
         alert('Failed to delete contract');
       }
     }
    };
+
+
+   const handleRestore = async (id:number) => {
+
+    try {
+      await restoreContract(id);
+
+      setArchivedContracts(
+        archivedContracts.filter(contract => contract.id !== id)
+      );
+
+      const data = await fetchContracts();
+      setContracts(data);
+
+      alert("Contract to Restore SuccessFully");
+    }
+
+    catch (error)
+    {
+      console.error(error);
+      alert("Failed to restore contracts");
+    }
+
+   };
+
+
+    const loadarchivedContracts =async () => {
+try{
+  const data = await fetchArchivedContracts();
+   setArchivedContracts(data);
+  
+}
+catch(error){
+
+  console.error(error);
+  alert("Failed to load archived")
+}
+};
 
  useEffect(() => {
     const auth = localStorage.getItem('authenticated');
@@ -216,6 +224,10 @@ const handleLogin = (e: React.FormEvent) => {
       try {
         const data = await fetchContracts();
         setContracts(data);
+
+         const archiveData = await fetchArchivedContracts();
+        setArchivedContracts(archiveData);
+
       } catch (err) {
         setError('Failed to load contracts. Please try again later.');
         console.error('Fetch error:', err);
@@ -236,14 +248,45 @@ const handleLogin = (e: React.FormEvent) => {
   };
   
 
-  const today = new Date();
-const fourMonthsLater = new Date(today);
-fourMonthsLater.setMonth(today.getMonth() + 4);
+  
 
-const expiringSoon = contracts.filter(c => {
-  const endDate = new Date(c.end_date);
+const expiringContracts = contracts.filter(contract => {
+
+   if (!contract.end_date) {
+    return false;
+  }
+
+  const today = new Date();
+  const fourMonthsLater = new Date();
+  fourMonthsLater.setMonth(today.getMonth() + 4);
+
+  const endDate = new Date(contract.end_date);
+
   return endDate >= today && endDate <= fourMonthsLater;
-}).length;
+});
+
+
+const handlearchivedContracts =async () => {
+
+   setOpenArchivedModal(true);
+
+};
+
+const handleHistory = async (id: number) => {
+  try {
+    const data = await fetchHistory(id);
+        console.log("#############");
+    console.log(data);
+
+    setHistory(data);
+
+    setOpenHistory(true);
+
+  } catch (error) {
+    console.error(error);
+    alert("Failed to load history");
+  }
+};
 
   const handleSave = async (id: number, updatedData: any) => {
     try {
@@ -346,6 +389,7 @@ const expiringSoon = contracts.filter(c => {
                   contracts={contracts} 
         onDelete={handleDelete}
         onEdit={handleEdit} 
+        onHistory={handleHistory}
          />
 
       </div>
@@ -519,20 +563,40 @@ if (!isAuthenticated) {
           <h3 style={styles.cardTitle}>Active Contracts</h3>
           <p style={styles.cardValue}>{activeContracts}</p>
         </div>
-        <div style={styles.card}>
-          <h3 style={styles.cardTitle}>Expiring Soon (≤120 days)</h3>
-          <p style={{ ...styles.cardValue, color: '#f59e0b' }}>{expiringSoon}</p>
-        </div>
+        <div
+  style={{
+    ...styles.card,
+    cursor: 'pointer'
+  }}
+  onClick={() => setOpenExpiringModal(true)}
+>
+    <h3 style={styles.cardTitle}>Expiring Within 4 Months</h3>
+    <p style={{ ...styles.cardValue, color: '#f59e0b' }}>
+        {expiringContracts.length}
+    </p>
+</div>
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Total Contracts</h3>
           <p style={styles.cardValue}>{contracts.length}</p>
         </div>
+        <div style={{
+          ...styles.card,
+          cursor: "pointer",
+        }}
+        onClick={() => setOpenArchivedModal(true)}>
+          <h3 style={styles.cardTitle}> Archived Comtracts</h3>
+          <p style={{...styles.cardValue,color:"#6b7280"}}>
+                {archivedContracts.length}
+          </p>
+
+        </div>
       </div>
 <ContractTable   
 
- contracts={contracts} 
+        contracts={contracts}
         onDelete={handleDelete}
-        onEdit={handleEdit}  />
+        onEdit={handleEdit} 
+        onHistory={handleHistory} />
 
  <EditModal
         open={isEditModalOpen}
@@ -540,6 +604,66 @@ if (!isAuthenticated) {
         contract={editingContract}
         onSave={handleSave}
       />
+
+       <HistoryModal
+    open={openHistory}
+    onClose={() => setOpenHistory(false)}
+    history={history}
+/>
+
+  <Dialog
+    open={openArchivedModal}
+    onClose={() => setOpenArchivedModal(false)}
+    maxWidth="lg"
+    fullWidth
+>
+    <DialogTitle>
+          Archived Contracts
+    </DialogTitle>
+
+    <DialogContent>
+        <ContractTable
+            contracts={archivedContracts}
+            onDelete={handleDelete}
+            onEdit={handleEdit} 
+           onHistory={handleHistory} 
+            archived={true} 
+            onRestore={handleRestore} />
+    </DialogContent>
+
+    <DialogActions>
+        <Button onClick={() => setOpenArchivedModal(false)}>
+            Close
+        </Button>
+    </DialogActions>
+</Dialog>
+
+
+ <Dialog
+    open={openExpiringModal}
+    onClose={() => setOpenExpiringModal(false)}
+    maxWidth="lg"
+    fullWidth
+>
+    <DialogTitle>
+        Contracts Expiring Within 4 Months
+    </DialogTitle>
+
+    <DialogContent>
+        <ContractTable
+            contracts={expiringContracts}
+            onDelete={handleDelete}
+            onEdit={handleEdit} 
+           onHistory={handleHistory}   />
+    </DialogContent>
+
+    <DialogActions>
+        <Button onClick={() => setOpenExpiringModal(false)}>
+            Close
+        </Button>
+    </DialogActions>
+</Dialog>
+    
     </div>
   );
 };
